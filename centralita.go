@@ -107,7 +107,7 @@ func consoleLoop() {
 	}
 }
 
-func saveClientsToFileOld(filename string) {
+func saveClientsToFile(filename string) {
 	clientsMu.Lock()
 	defer clientsMu.Unlock()
 

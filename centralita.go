@@ -77,7 +77,8 @@ func broadcast(action, payload string) {
 		_ = conn.WriteJSON(msg)
 	}
 }
-
+ //=======================
+ //	esta es la terminal interactiva
 func consoleLoop() {
 	reader := bufio.NewReader(os.Stdin)
 

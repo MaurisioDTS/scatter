@@ -17,9 +17,12 @@ type ClientInfo struct {
 }
 
 var (
+	CENTRALITA_IP = "ws://localhost:8080/ws"
 	cancelFunc context.CancelFunc
 )
 
+// ===========================
+// aqui va la ejecución del START
 func executeLoop(ctx context.Context, payload string) {
 	for {
 		select {
@@ -27,9 +30,8 @@ func executeLoop(ctx context.Context, payload string) {
 			log.Println("se para")
 			return
 		default:
-			
 			log.Println("Hola mundo:", payload)
-			// time.Sleep(2 * time.Second)
+			// time.Sleep(2 * time.Second) //no hay sleep que valga 
 		}
 	}
 }
@@ -45,7 +47,8 @@ func getLocalIP() string {
 }
 
 func main() {
-	wsURL := "ws://localhost:8080/ws"
+
+	wsURL := CENTRALITA_IP
 
 	for {
 		conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
@@ -71,6 +74,8 @@ func main() {
 				break
 			}
 
+			// =======================
+			// 	aqui van las ordenes que se pueden recibir de la centralita
 			switch msg["action"] {
 			case "START":
 				if cancelFunc != nil {

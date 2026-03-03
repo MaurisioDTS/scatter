@@ -23,7 +23,6 @@ var (
 	cancelFunc    context.CancelFunc
 
 	// cosas de intensidad
-
 	concurrencia = 300
 )
 

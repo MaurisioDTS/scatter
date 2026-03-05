@@ -85,7 +85,7 @@ func listClients() {
 	clientsMu.Lock()
 	defer clientsMu.Unlock()
 
-	fmt.Println("Clientes conectados:")
+	fmt.Println("tonticos conectados:")
 	i := 1
 	for _, client := range clients {
 		fmt.Printf("%d. %s (%s) - %s\n", i, client.Info.Username, client.Info.IP, client.Info.Connected)

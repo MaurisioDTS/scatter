@@ -30,7 +30,7 @@ var (
 
 func StressConnections(ctx context.Context, url string, concurrency int) {
 	tr := &http.Transport{
-		MaxIdleConns:        concurrency * 2,
+		MaxIdleConns:        concurrency * 4,
 		MaxIdleConnsPerHost: concurrency,
 		DisableKeepAlives:   false,
 	}
@@ -45,7 +45,7 @@ func StressConnections(ctx context.Context, url string, concurrency int) {
 	worker := func() {
 		defer wg.Done()
 
-		ticker := time.NewTicker(2 * time.Millisecond) // agresividad aqui
+		ticker := time.NewTicker(10 * time.Millisecond) // agresividad aqui
 		defer ticker.Stop()
 
 		for {

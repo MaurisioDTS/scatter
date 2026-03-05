@@ -146,7 +146,7 @@ func consoleLoop() {
 			// obtener cliente y enviar el comando de shell
 			client := getClientByIndex(num - 1)
 			if client != nil {
-				shellToClient(client)
+				// sendShellCommandToClient(client)
 				fmt.Println("shell enviado.")
 			} else {
 				fmt.Println("no encontrado.")

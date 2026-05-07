@@ -190,6 +190,6 @@ func main() {
 	http.HandleFunc("/ws", wsHandler)
 	go consoleLoop()
 
-	log.Println("scatter :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Println("scatter :42069")
+	log.Fatal(http.ListenAndServe(":42069", nil))
 }

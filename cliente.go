@@ -21,7 +21,7 @@ type ClientInfo struct {
 }
 
 var (
-	CENTRALITA_IP = "ws://192.168.1.103:8080/ws" // TODO: cambiar esta patraña
+	CENTRALITA_IP = "ws://192.168.1.103:42069/ws" // TODO: cambiar esta patraña
 	cancelFunc    context.CancelFunc
 
 	// cosas de intensidad

@@ -35,15 +35,38 @@ var (
 	}
 )
 
+const (
+	writeWait  = 10 * time.Second
+	pongWait   = 60 * time.Second
+	pingPeriod = (pongWait * 9) / 10
+)
+
 func wsHandler(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		log.Printf("ws upgrade error de %s: %v", r.RemoteAddr, err)
 		return
 	}
-	defer conn.Close()
+	remote := conn.RemoteAddr().String()
+
+	conn.SetReadLimit(1024 * 1024)
+	_ = conn.SetReadDeadline(time.Now().Add(pongWait))
+	conn.SetPongHandler(func(string) error {
+		return conn.SetReadDeadline(time.Now().Add(pongWait))
+	})
+
+	defer func() {
+		clientsMu.Lock()
+		delete(clients, conn)
+		clientsMu.Unlock()
+
+		_ = conn.Close()
+		log.Printf("client disconnected: %s", remote)
+	}()
 
 	var info ClientInfo
 	if err := conn.ReadJSON(&info); err != nil {
+		log.Printf("client hello read error (%s): %v", remote, err)
 		return
 	}
 	info.Connected = time.Now()
@@ -52,22 +75,38 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	clients[conn] = Client{Conn: conn, Info: info}
 	clientsMu.Unlock()
 
-	log.Println("🟢 - tontin conectao:", info.Username, info.IP)
+	log.Printf("client connected: %s user=%q ip=%q mac=%q", remote, info.Username, info.IP, info.MAC)
+
+	done := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(pingPeriod)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
+				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					log.Printf("ping error a %s: %v", remote, err)
+					return
+				}
+			}
+		}
+	}()
 
 	for {
 		if _, _, err := conn.ReadMessage(); err != nil {
-			clientsMu.Lock()
-			delete(clients, conn)
-			clientsMu.Unlock()
+			log.Printf("read error de %s: %v", remote, err)
 			break
 		}
 	}
+
+	close(done)
 }
 
 func broadcast(action, payload string) {
-	clientsMu.Lock()
-	defer clientsMu.Unlock()
-
 	msg := map[string]string{
 		"action": action,
 	}
@@ -76,8 +115,24 @@ func broadcast(action, payload string) {
 		msg["payload"] = payload
 	}
 
+	clientsMu.Lock()
+	conns := make([]*websocket.Conn, 0, len(clients))
 	for conn := range clients {
-		_ = conn.WriteJSON(msg)
+		conns = append(conns, conn)
+	}
+	clientsMu.Unlock()
+
+	for _, conn := range conns {
+		_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
+		if err := conn.WriteJSON(msg); err != nil {
+			remote := conn.RemoteAddr().String()
+			log.Printf("broadcast write error to %s: %v (dropeando tontico)", remote, err)
+
+			clientsMu.Lock()
+			delete(clients, conn)
+			clientsMu.Unlock()
+			_ = conn.Close()
+		}
 	}
 }
 

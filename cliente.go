@@ -21,7 +21,7 @@ type ClientInfo struct {
 }
 
 var (
-	CENTRALITA_IP = "ws://192.168.1.103:42069/ws" // TODO: cambiar esta patraña
+	CENTRALITA_IP = "ws://192.168.1.54:42069/ws" // TODO: cambiar esta patraña
 	cancelFunc    context.CancelFunc
 
 	// cosas de intensidad
@@ -103,9 +103,9 @@ func getLocalMAC(preferIP string) string {
 		if (iface.Flags&net.FlagLoopback) != 0 || (iface.Flags&net.FlagUp) == 0 {
 			continue
 		}
-		if len(iface.HardwareAddr) == 0 continue // si no hay MAC, saltamos
+		if len(iface.HardwareAddr) == 0 { continue } // si no hay MAC, saltamos
 
-		if fallback == "" fallback = iface.HardwareAddr.String()
+		if fallback == "" { fallback = iface.HardwareAddr.String() }
 
 		// si tenemos IP, buscamos interfaz
 		if ip != nil {
@@ -116,8 +116,8 @@ func getLocalMAC(preferIP string) string {
 			for _, a := range addrs {
 				ipnet, ok := a.(*net.IPNet)
 
-				if !ok || ipnet.IP == nil continue // si no es IP, saltamos
-				if ipnet.IP.Equal(ip) return iface.HardwareAddr.String() // si es la IP, devolvemos la MAC
+				if !ok || ipnet.IP == nil { continue } // si no es	 IP, saltamos
+				if ipnet.IP.Equal(ip) { return iface.HardwareAddr.String() } // si es la IP, devolvemos la MAC
 			}
 		}
 	}

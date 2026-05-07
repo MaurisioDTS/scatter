@@ -86,7 +86,46 @@ func getLocalIP() string {
 			return ipnet.IP.String()
 		}
 	}
-	return "unknown"
+	return "ni puta idea"
+}
+
+func getLocalMAC(preferIP string) string {
+	ip := net.ParseIP(preferIP)
+
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "ni puta idea"
+	}
+
+	var fallback string
+	for _, iface := range ifaces {
+		// saltar loopback / interfaces down
+		if (iface.Flags&net.FlagLoopback) != 0 || (iface.Flags&net.FlagUp) == 0 {
+			continue
+		}
+		if len(iface.HardwareAddr) == 0 continue // si no hay MAC, saltamos
+
+		if fallback == "" fallback = iface.HardwareAddr.String()
+
+		// si tenemos IP, buscamos interfaz
+		if ip != nil {
+			addrs, err := iface.Addrs()
+			if err != nil {
+				continue
+			}
+			for _, a := range addrs {
+				ipnet, ok := a.(*net.IPNet)
+
+				if !ok || ipnet.IP == nil continue // si no es IP, saltamos
+				if ipnet.IP.Equal(ip) return iface.HardwareAddr.String() // si es la IP, devolvemos la MAC
+			}
+		}
+	}
+
+	if fallback != "" {
+		return fallback
+	}
+	return "ni puta idea"
 }
 
 func executeShellCommand(command string) (string, error) {
@@ -113,10 +152,10 @@ func main() {
 			return conn.SetReadDeadline(time.Now().Add(pongWait))
 		})
 
+		localIP := getLocalIP()
 		info := ClientInfo{
-			IP: getLocalIP(),
-			// TODO: añadir lo de la mac
-			MAC:      "00:11:22:33:44:55",
+			IP:       localIP,
+			MAC:      getLocalMAC(localIP),
 			Username: os.Getenv("USER"),
 		}
 		_ = conn.SetWriteDeadline(time.Now().Add(writeWait))

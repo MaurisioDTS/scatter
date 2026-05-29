@@ -36,15 +36,7 @@ comunicación por **websockets** en el puerto `42069`, mandando **json** con `ac
 
 ## ¿cómo funciona?
 
-```
-  [ centralita :42069 ]
-         │
-         │  websocket /ws
-         │
-    ┌────┴────┬─────────┐
-    │         │         │
- [cliente] [cliente] [cliente]
-```
+<img width="453" height="558" alt="como funciona" src="https://github.com/user-attachments/assets/199d8343-42b3-4f59-81bb-df9259a162e1" />
 
 1. el cliente abre `ws://<ip_c2>:42069/ws` y envía quién es (usuario, ip local, mac).
 2. la centralita lo registra y desde consola puedes mandar órdenes a todos (broadcast).
